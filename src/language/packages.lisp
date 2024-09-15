@@ -7,6 +7,7 @@
   (:export
     :source-position
     :source-origin
+    :format-position
     :from-file
     :from-string
     :source-code

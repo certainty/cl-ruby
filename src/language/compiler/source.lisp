@@ -25,6 +25,12 @@
       (column position)
       (offset position))))
 
+(defun format-position (position &optional stream)
+  "Prints the source position to the standard output."
+  (with-slots (line column offset) position
+    (format stream "offset ~D line ~D column ~D"
+      offset line column)))
+
 (defclass source-origin () ()
   (:documentation "A source origin represents the origin of a source code."))
 

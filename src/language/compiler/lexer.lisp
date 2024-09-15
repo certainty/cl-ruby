@@ -78,7 +78,10 @@
      :reader lexer-error-position
      :initarg :position))
   (:report (lambda (condition stream)
-             (format stream "Illegal token at ~a" (lexer-error-position condition)))))
+             (let ((position (lexer-error-position condition)))
+               (format stream "Lexer error at ~a:  ~a"
+                 (source:format-position position)
+                 (lexer-error-message condition))))))
 
 (define-condition invalid-token (lexer-error) ())
 
