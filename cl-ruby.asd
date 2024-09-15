@@ -18,7 +18,9 @@
   ((:file "packages")
     (:module "compiler"
       :components
-      ((:file "parser")))))
+      ((:file "source")
+       (:file "lexer")
+       (:file "parser")))))
 
 (defsystem :cl-ruby/rubyc
   :description "The ruby compiler and interpreter"
