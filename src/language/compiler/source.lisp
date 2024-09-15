@@ -133,7 +133,7 @@
   "Returns true if the cursor is at the end of the source code."
   (>= (offset cursor) (length (code (slot-value cursor 'source-code)))))
 
-(defun cursor-advance (cursor &optional (n 1))
+(defun cursor-advance (cursor)
   "Advances the cursor to the next position in the source code.
    Returns two values: the updated cursor and a boolean that is true if the cursor is at the end of the source code."
   (with-slots (offset line column source-code) cursor

@@ -56,6 +56,10 @@
     :class @eof
     :lexeme ""))
 
+(defun token-class= (token class)
+  "Returns true if the token's class is equal to the given class."
+  (eq (token-class token) class))
+
 (define-condition lexer-error (error)
   ((message
      :reader lexer-error-message
@@ -117,18 +121,28 @@
   (loop
     :with tokens = nil
     :for token = (next-token lexer)
+    :do (unless (token-class= token @eof)
+          (push token tokens))
     :until (eofp lexer)
-    :do (push token tokens)
-    :finally (return (coerce (nreverse tokens) 'vector) )))
+    :finally (return (coerce (nreverse tokens) 'vector))))
 
 (defun scan-token (lexer)
   "Scans the next token and returns it. If there is an error, then it will signal an `invalid-token' condition."
-  (or (scan-eof lexer)))
+  (with-slots (base) lexer
+    (or
+      (scan-eof lexer)
+      (scan-space lexer)
+      (error 'invalid-token :position (source:cursor-position base) :message "Invalid token"))))
 
 (defun scan-eof (lexer)
   "Scans the end of the input and returns the EOF token."
   (if (eofp lexer)
     (accept lexer @eof)))
+
+(defun scan-space (lexer)
+  "Scans space which is one or more whitespace characters."
+  (scan-while lexer #'sb-unicode:whitespace-p)
+  (accept lexer @space))
 
 ;;; Scanning functions and combinators
 (defun recover (lexer)
@@ -137,7 +151,8 @@
   lexer)
 
 (defun statement-boundary-p (c)
-  (or (char= c #\newline) (char= c #\;)))
+  (when c
+    (or (char= c #\newline) (char= c #\;))))
 
 (defmacro skip-on-error (&body body)
   "Use this to wrap the scanning process and it will handle scan errors by inserting the special `@invalid' token and continue scanning at the next token"
@@ -167,7 +182,7 @@ Example:
 (defun scan-while (lexer predicate)
   "Scans the input string while the predicate is true."
   (with-slots (look-ahead) lexer
-    (loop :for c = (source:cursor-value look-ahead)
+    (loop :for c = (source:cursor-value look-ahead :eof-is-error-p nil)
       :while (and c (funcall predicate c))
       :do (advance lexer))))
 
