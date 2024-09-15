@@ -7,6 +7,8 @@
   @ignored
 
   @semicolon
+  @comma
+  @dot
 
   @lbrace
   @rbrace
@@ -17,8 +19,10 @@
 
   @space
   @newline
+
   @identifier
-  )
+  @symbol
+  @scope)
 
 (defclass token ()
   ((class
@@ -149,14 +153,75 @@
         ((sb-unicode:whitespace-p c)
           (advance-while lexer #'sb-unicode:whitespace-p)
           (accept lexer @space))
+
+        ;; comments
+
+        ;; punctuation
+
         ((char= c #\;) (accept lexer @semicolon))
+        ((char= c #\,) (accept lexer @comma))
+        ((char= c #\.) (accept lexer @dot))
         ((char= c #\{) (accept lexer @lbrace))
         ((char= c #\}) (accept lexer @rbrace))
         ((char= c #\[) (accept lexer @lbracket))
         ((char= c #\]) (accept lexer @rbracket))
         ((char= c #\() (accept lexer @lparen))
         ((char= c #\)) (accept lexer @rparen))
+
+        ;; operators
+        ((char= c #\:)
+          (alexandria:when-let ((c (peek lexer)))
+            (when (char= c #\:)
+              (advance lexer)
+              (accept lexer @scope))))
+        ((char= c #\*) nil)
+        ((char= c #\+) nil)
+        ((char= c #\-) nil)
+        ((char= c #\&) nil)
+        ((char= c #\|) nil)
+        ((char= c #\~) nil)
+        
+        ;; number literals
+        ((digit-char-p c) (scan-number lexer c))
+
+        ;; char literals
+        ((char= c #\?) (scan-char lexer))
+
+        ;; string literals
+        ((char= c #\") (scan-string lexer c))
+
+        ((char= c #\') (scan-string lexer c))
+
+        ;; variables
+        ((char= c #\$) nil)
+        ((char= c #\@) nil)
+
+        ;; heredocs
+
+        ;; percent literals
+
+        ;; identifiers / constants / keywords
+        ((sb-unicode:alphabetic-p c)
+          (if (sb-unicode:uppercase-p c)
+            (scan-constant lexer c)
+            (scan-identifier-or-keyword lexer c)))
+
         (t (error 'invalid-token :position (source:cursor-position look-ahead) :message "Invalid token"))))))
+
+(defun scan-number (lexer c)
+  nil)
+
+(defun scan-char (lexer)
+  nil)
+
+(defun scan-string (lexer c)
+  nil)
+
+(defun scan-identifier-or-keyword (lexer c)
+  nil)
+
+(defun scan-constant (lexer c)
+  nil)
 
 ;;; Scanning functions and combinators
 (defun recover (lexer)
