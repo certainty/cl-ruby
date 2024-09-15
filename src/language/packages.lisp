@@ -3,7 +3,7 @@
 (defpackage :cl-ruby.source
   (:use :cl)
   (:nicknames :source)
-  (:local-nicknames (:s :serapeum))
+  (:local-nicknames (:s :serapeum) (:a :alexandria))
   (:export
     :source-position
     :source-origin

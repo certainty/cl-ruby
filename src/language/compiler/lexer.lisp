@@ -4,7 +4,17 @@
 (s:defunion token-class
   @eof
   @illegal
+  @ignored
+
   @semicolon
+
+  @lbrace
+  @rbrace
+  @lparen
+  @rparen
+  @lbracket
+  @rbracket
+
   @space
   @newline
   @identifier
@@ -46,9 +56,9 @@
    "))
 
 (defmethod print-object ((token token) stream)
-  (with-slots (class lexeme value) token
+  (with-slots (class lexeme value position) token
     (print-unreadable-object (token stream :type t :identity t)
-      (format stream "class: ~a lexeme: ~a value: ~S" class lexeme value))))
+      (format stream "class: ~a lexeme: ~a value: ~S position: ~a" class lexeme value position))))
 
 (defun synthetic-eof ()
   "Returns a synthetic EOF token. This is used to mark the end of the input."
@@ -115,9 +125,9 @@
 "
   (let ((lexer (make-lexer input)))
     (with-slots (error-count) lexer
-      (values (scan-til-eof lexer) (plusp error-count) error-count))))
+      (values (scan-all lexer) (plusp error-count) error-count))))
 
-(defun scan-til-eof (lexer)
+(defun scan-all (lexer)
   (loop
     :with tokens = nil
     :for token = (next-token lexer)
@@ -128,26 +138,27 @@
 
 (defun scan-token (lexer)
   "Scans the next token and returns it. If there is an error, then it will signal an `invalid-token' condition."
-  (with-slots (base) lexer
-    (or
-      (scan-eof lexer)
-      (scan-space lexer)
-      (error 'invalid-token :position (source:cursor-position base) :message "Invalid token"))))
-
-(defun scan-eof (lexer)
-  "Scans the end of the input and returns the EOF token."
-  (if (eofp lexer)
-    (accept lexer @eof)))
-
-(defun scan-space (lexer)
-  "Scans space which is one or more whitespace characters."
-  (scan-while lexer #'sb-unicode:whitespace-p)
-  (accept lexer @space))
+  (with-slots (look-ahead) lexer
+    (let ((c (advance lexer)))
+      (cond
+        ((null c) (accept lexer @eof))
+        ((char= c #\newline) (accept lexer @newline))
+        ((sb-unicode:whitespace-p c)
+          (advance-while lexer #'sb-unicode:whitespace-p)
+          (accept lexer @space))
+        ((char= c #\;) (accept lexer @semicolon))
+        ((char= c #\{) (accept lexer @lbrace))
+        ((char= c #\}) (accept lexer @rbrace))
+        ((char= c #\[) (accept lexer @lbracket))
+        ((char= c #\]) (accept lexer @rbracket))
+        ((char= c #\() (accept lexer @lparen))
+        ((char= c #\)) (accept lexer @rparen))
+        (t (error 'invalid-token :position (source:cursor-position look-ahead) :message "Invalid token"))))))
 
 ;;; Scanning functions and combinators
 (defun recover (lexer)
   "Advances the scanner to the next statement boundary, which is either a newline or a semicolon."
-  (skip-until lexer #'statement-boundary-p)
+  (advance-until lexer #'statement-boundary-p)
   lexer)
 
 (defun statement-boundary-p (c)
@@ -159,8 +170,9 @@
   `(handler-bind ((invalid-token #'skip-to-next-token))
      ,@body))
 
-(defun skip-to-next-token ()
+(defun skip-to-next-token (c)
   "Invoke the restart `skip-to-next-token' to skip to the next token"
+  (declare (ignore c))
   (let ((restart (find-restart 'skip-to-next-token)))
     (when restart
       (invoke-restart restart))))
@@ -177,48 +189,63 @@ Example:
     (skip-to-next-token ()
       (incf (slot-value lexer 'error-count))
       (recover lexer)
-      (accept lexer @illegal))))
+      (accept lexer @ignored))))
 
-(defun scan-while (lexer predicate)
-  "Scans the input string while the predicate is true."
+(defun peek (lexer)
+  "Peeks at the next character in the input string."
   (with-slots (look-ahead) lexer
-    (loop :for c = (source:cursor-value look-ahead :eof-is-error-p nil)
-      :while (and c (funcall predicate c))
-      :do (advance lexer))))
+    (source:cursor-value look-ahead)))
+
+(defun advance-while (lexer predicate)
+  "Scans the input string while the predicate is true."
+  (loop
+    :for c = (peek lexer)
+    :while (and c (funcall predicate c))
+    :do (advance lexer)))
+
+(defun advance-until (lexer predicate)
+  "Scans the input string until the predicate is true."
+  (loop :for c = (peek lexer)
+    :while (and c (not (funcall predicate c)))
+    :do (advance lexer)))
 
 (defun skip-until (lexer predicate)
   "Skips the input string until the predicate is true."
-  (with-slots (look-ahead) lexer
-    (loop :for c = (source:cursor-value look-ahead)
-      :while (and c (not (funcall predicate c)))
-      :do (advance lexer)
-      :finally (skip lexer))))
+  (loop
+    :for c = (peek lexer)
+    :while (and c (not (funcall predicate c)))
+    :do (advance lexer)
+    :finally (skip lexer)))
 
 (defun skip-while (lexer predicate)
   "Skips the input string while the predicate is true."
   (skip-until lexer (complement predicate)))
 
 (defun eofp (lexer)
-  (with-slots (base) lexer
-    (source:cursor-eofp base)))
-
-(defun advance (lexer &key (by 1))
-  "Advances the look-ahead cursor by the given number of characters. Returns the character at the final position.
-  If the cursor is already at the end of the input, then it returns nil."
+  "Returns true if the lexer has reached the end of the input."
   (with-slots (look-ahead) lexer
-    (loop :repeat by :do (source:cursor-advance look-ahead))
-    (unless (source:cursor-eofp look-ahead)
-      (source:cursor-value look-ahead))))
+    (source:cursor-eofp look-ahead)))
+
+(defun advance (lexer)
+  "Advances the look-ahead cursor by one and returns the character at the position it pointed to"
+  (with-slots (look-ahead) lexer
+    (prog1 (source:cursor-value look-ahead)
+      (source:cursor-advance look-ahead))))
 
 (defun accept (lexer token-class &key (transform-value #'identity))
   "Accepts the input between the `base' and `look-ahead' cursor as the next token with the provided token-class.
 This will advance the `base' cursor to the `look-ahead' cursor and return the token.
 "
   (with-slots (base look-ahead) lexer
-    (let* ((lexeme (source:cursor-value base :end-cursor look-ahead :eof-is-error-p nil))
+    (let* ((lexeme (source:cursor-value base :end-cursor look-ahead))
             (token (make-instance 'token :class token-class :lexeme lexeme :value (funcall transform-value lexeme) :position (source:cursor-position base))))
       (setf base (source:cursor-clone look-ahead))
       token)))
+
+(defun backtrack (lexer)
+  "Backtracks the look-ahead cursor to base."
+  (with-slots (base look-ahead) lexer
+    (setf look-ahead (source:cursor-clone base))))
 
 (defun skip (lexer)
   "Skips the input between the `base' and `look-ahead' cursor."
