@@ -52,6 +52,10 @@
 (deftoken-class @constant "Constant")
 (deftoken-class @symbol "Symbol")
 
+(deftoken-class @ivar "Instance variable")
+(deftoken-class @cvar "Class variable")
+(deftoken-class @gvar "Global variable")
+
 ;; keywords
 (deftoken-class @kw_def "def")
 (deftoken-class @kw_class "class")
@@ -247,6 +251,7 @@
             (when (char= c #\:)
               (advance lexer)
               (accept lexer @scope))))
+
         ((char= c #\*) nil)
         ((char= c #\+) nil)
         ((char= c #\-) nil)
@@ -266,8 +271,14 @@
         ((char= c #\') (scan-string lexer c))
 
         ;; variables
-        ((char= c #\$) nil)
-        ((char= c #\@) nil)
+        ((char= c #\$)
+          (scan-variable lexer @gvar))
+
+        ((char= c #\@)
+          (a:when-let ((c (peek lexer)))
+            (when (char= c #\@)
+              (scan-variable lexer @cvar)
+              (scan-variable lexer @ivar))))
 
         ;; heredocs
 
@@ -290,20 +301,33 @@
 (defun scan-string (lexer c)
   nil)
 
+
 (defun identifier-char-p (c)
-  (or (sb-unicode:alphabetic-p c) (digit-char-p c) (char= c #\_)))
+  (or
+    (sb-unicode:alphabetic-p c)
+    (digit-char-p c)
+    (char= c #\_)))
 
 (defun scan-identifier-or-keyword (lexer)
   (advance-while lexer #'identifier-char-p)
-
   (let ((lexeme (current-lexeme lexer)))
     (a:if-let ((kw (gethash lexeme +keywords+)))
       (accept lexer kw)
       (accept lexer @identifier :include-lexeme t))))
 
+(defun constant-char-p (c)
+  (or
+    (sb-unicode:alphabetic-p c)
+    (digit-char-p c)
+    (char= c #\_)))
+
 (defun scan-constant (lexer)
-  (advance-while lexer #'identifier-char-p)
+  (advance-while lexer #'constant-char-p)
   (accept lexer @constant :include-lexeme t))
+
+(defun scan-variable (lexer token-class)
+  (advance-while lexer #'identifier-char-p)
+  (accept lexer token-class :include-lexeme t))
 
 ;;; Scanning functions and combinators
 (defun recover (lexer)
