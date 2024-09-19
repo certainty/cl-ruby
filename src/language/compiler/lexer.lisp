@@ -1,7 +1,13 @@
 (in-package :cl-ruby.lexer)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (deftype token-class ()
+    "A type representing the class of a token."
+    '(unsigned-byte 8))
+
   (defvar *token-class-id-seq* 0)
+  (declaim (type token-class *token-class-id-seq*))
+
   (defvar *token-class-to-name* (make-hash-table))
   (defvar *token-name-to-class* (make-hash-table))
 
@@ -43,11 +49,83 @@
 (deftoken-class @scope "Scope")
 
 (deftoken-class @identifier "Identifier")
+(deftoken-class @constant "Constant")
 (deftoken-class @symbol "Symbol")
 
-(deftype token-class ()
-  "A type representing the class of a token."
-  '(integer 0 *))
+;; keywords
+(deftoken-class @kw_def "def")
+(deftoken-class @kw_class "class")
+(deftoken-class @kw_module "module")
+(deftoken-class @kw_if "if")
+(deftoken-class @kw_else "else")
+(deftoken-class @kw_elsif "elsif")
+(deftoken-class @kw_unless "unless")
+(deftoken-class @kw_case "case")
+(deftoken-class @kw_when "when")
+(deftoken-class @kw_while "while")
+(deftoken-class @kw_until "until")
+(deftoken-class @kw_for "for")
+(deftoken-class @kw_in "in")
+(deftoken-class @kw_do "do")
+(deftoken-class @kw_begin "begin")
+(deftoken-class @kw_rescue "rescue")
+(deftoken-class @kw_ensure "ensure")
+(deftoken-class @kw_then "then")
+(deftoken-class @kw_next "next")
+(deftoken-class @kw_break "break")
+(deftoken-class @kw_return "return")
+(deftoken-class @kw_retry "retry")
+(deftoken-class @kw_end "end")
+(deftoken-class @kw_yield "yield")
+(deftoken-class @kw_super "super")
+(deftoken-class @kw_self "self")
+(deftoken-class @kw_true "true")
+(deftoken-class @kw_false "false")
+(deftoken-class @kw_nil "nil")
+(deftoken-class @kw_alias "alias")
+(deftoken-class @kw_undef "undef")
+(deftoken-class @kw_defined "defined?")
+
+(s:defconst +keywords+
+  (s:dict
+    "def" @kw_def
+    "class" @kw_class
+    "module" @kw_module
+    "if" @kw_if
+    "else" @kw_else
+    "elsif" @kw_elsif
+    "unless" @kw_unless
+    "case" @kw_case
+    "when" @kw_when
+    "while" @kw_while
+    "until" @kw_until
+    "for" @kw_for
+    "in" @kw_in
+    "do" @kw_do
+    "begin" @kw_begin
+    "rescue" @kw_rescue
+    "ensure" @kw_ensure
+    "then" @kw_then
+    "next" @kw_next
+    "break" @kw_break
+    "return" @kw_return
+    "retry" @kw_retry
+    "end" @kw_end
+    "yield" @kw_yield
+    "super" @kw_super
+    "self" @kw_self
+    "true" @kw_true
+    "false" @kw_false
+    "nil" @kw_nil
+    "alias" @kw_alias
+    "undef" @kw_undef
+    "defined?" @kw_defined))
+
+(deftoken-class @op_and "and")
+(deftoken-class @op_or "or")
+(deftoken-class @op_not "not")
+
+;; todo define lookup table for keywords
 
 (s:defconstructor token
   (class token-class)
@@ -198,8 +276,8 @@
         ;; identifiers / constants / keywords
         ((sb-unicode:alphabetic-p c)
           (if (sb-unicode:uppercase-p c)
-            (scan-constant lexer c)
-            (scan-identifier-or-keyword lexer c)))
+            (scan-constant lexer)
+            (scan-identifier-or-keyword lexer)))
 
         (t (error 'invalid-token :position (source:cursor-position look-ahead) :message "Invalid token"))))))
 
@@ -212,11 +290,20 @@
 (defun scan-string (lexer c)
   nil)
 
-(defun scan-identifier-or-keyword (lexer c)
-  nil)
+(defun identifier-char-p (c)
+  (or (sb-unicode:alphabetic-p c) (digit-char-p c) (char= c #\_)))
 
-(defun scan-constant (lexer c)
-  nil)
+(defun scan-identifier-or-keyword (lexer)
+  (advance-while lexer #'identifier-char-p)
+
+  (let ((lexeme (current-lexeme lexer)))
+    (a:if-let ((kw (gethash lexeme +keywords+)))
+      (accept lexer kw)
+      (accept lexer @identifier :include-lexeme t))))
+
+(defun scan-constant (lexer)
+  (advance-while lexer #'identifier-char-p)
+  (accept lexer @constant :include-lexeme t))
 
 ;;; Scanning functions and combinators
 (defun recover (lexer)
@@ -250,7 +337,7 @@ Example:
 "
   (restart-case (scan-token lexer)
     (skip-to-next-token ()
-      (incf (slot-value lexer 'error-count))
+      (incf (slot-value lexer error-count))
       (recover lexer)
       (accept lexer @ignored))))
 
@@ -295,15 +382,20 @@ Example:
     (prog1 (source:cursor-value look-ahead)
       (source:cursor-advance look-ahead))))
 
-(defun accept (lexer token-class &key (transform-value #'identity))
+(defun accept (lexer token-class &key transform-value include-lexeme)
   "Accepts the input between the `base' and `look-ahead' cursor as the next token with the provided token-class.
 This will advance the `base' cursor to the `look-ahead' cursor and return the token.
 "
   (with-slots (base look-ahead) lexer
     (let* ((lexeme (source:cursor-value base :end-cursor look-ahead))
-            (token (token token-class lexeme (funcall transform-value lexeme) (source:cursor-position base))))
+            (token (token token-class (and include-lexeme lexeme) (and transform-value (funcall transform-value lexeme)) (source:cursor-position base))))
       (setf base (source:cursor-clone look-ahead))
       token)))
+
+(defun current-lexeme (lexer)
+  "Returns the current lexeme between the `base' and `look-ahead' cursor."
+  (with-slots (base look-ahead) lexer
+    (source:cursor-value base :end-cursor look-ahead)))
 
 (defun backtrack (lexer)
   "Backtracks the look-ahead cursor to base."
