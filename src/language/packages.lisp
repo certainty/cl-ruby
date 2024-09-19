@@ -24,7 +24,7 @@
 
 (defpackage :cl-ruby.lexer
   (:use :cl)
-  (:local-nicknames (:s :serapeum))
+  (:local-nicknames (:s :serapeum) (:a :alexandria))
   (:shadow :class)
   (:export :lex))
 

@@ -1,78 +1,73 @@
 (in-package :cl-ruby.lexer)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar *token-class-id-seq* 0)
+  (defvar *token-class-to-name* (make-hash-table))
+  (defvar *token-name-to-class* (make-hash-table))
+
+  (setf *token-class-id-seq* 0)
+  (setf *token-class-to-name* (make-hash-table))
+  (setf *token-name-to-class* (make-hash-table)))
+
+(defmacro deftoken-class (name &optional (documentation ""))
+  "Defines a constant for the given name and assigns it a unique integer value."
+  (let ((id (incf *token-class-id-seq*)))
+    `(progn
+       (s:defconst ,name ,id ,documentation)
+       (setf (gethash ,id *token-class-to-name*) ',name)
+       (setf (gethash ',name *token-name-to-class*) ,id))))
+
 ;;; https://github.com/ruby/ruby/blob/master/ext/ripper/lib/ripper/lexer.rb
-(s:defunion token-class
-  @eof
-  @illegal
-  @ignored
 
-  @semicolon
-  @comma
-  @dot
+;; special
+(deftoken-class @eof "End of file")
+(deftoken-class @illegal "Illegal token")
+(deftoken-class @ignored "Ignored token")
 
-  @lbrace
-  @rbrace
-  @lparen
-  @rparen
-  @lbracket
-  @rbracket
+;; whitespace
+(deftoken-class @space "Space")
+(deftoken-class @newline "Newline")
 
-  @space
-  @newline
+;; punctuation
+(deftoken-class @semicolon "Semicolon")
+(deftoken-class @comma "Comma")
+(deftoken-class @dot "Dot")
+(deftoken-class @lbrace "Left brace")
+(deftoken-class @rbrace "Right brace")
+(deftoken-class @lparen "Left parenthesis")
+(deftoken-class @rparen "Right parenthesis")
+(deftoken-class @lbracket "Left bracket")
+(deftoken-class @rbracket "Right bracket")
 
-  @identifier
-  @symbol
-  @scope)
+;; operators
+(deftoken-class @scope "Scope")
 
-(defclass token ()
-  ((class
-     :reader token-class
-     :initarg :class
-     :initform (error "no type given")
-     :type token-class
-     :documentation "The type of the token, which is a member of `token-class'")
-    (lexeme
-      :reader token-lexeme
-      :initarg :lexeme
-      :initform (error "no lexeme given")
-      :type string
-      :documentation "The actual string that was matched by the scanner.")
-    (value
-      :reader token-value
-      :initarg :value
-      :initform nil
-      :type (or null t)
-      :documentation
-      "The value of the token. This is used mostly for literals, which we can evaluate at compile time to lisp values.
-    These are not necessarily equivalent to the runtime values we will eventually get.")
-    (position
-      :reader token-position
-      :initarg :position
-      :initform nil
-      :type (or null source:source-position)))
-  (:documentation "A token is a single unit of input. It is defined by the `class' and it's `lexeme'.
-   The `class' represents the type of the token.
-   The `lexeme' represents the actual string that was matched by the scanner.
-   For many tokens, the `lexeme' does not contain any useful information.
-   For example, the `lexeme' for the `PLUS' token is the string \"+\".
-   However, for some tokens, the `lexeme' is very important.
-   For example, the `lexeme' for an `identifier' token is the actual identifier.
-   "))
+(deftoken-class @identifier "Identifier")
+(deftoken-class @symbol "Symbol")
+
+(deftype token-class ()
+  "A type representing the class of a token."
+  '(integer 0 *))
+
+(s:defconstructor token
+  (class token-class)
+  (lexeme (or null string))
+  (value (or null t))
+  (position (or null source:source-position)))
 
 (defmethod print-object ((token token) stream)
   (with-slots (class lexeme value position) token
-    (print-unreadable-object (token stream :type t :identity t)
-      (format stream "class: ~a lexeme: ~a value: ~S position: ~a" class lexeme value position))))
+    (print-unreadable-object (token stream :type t :identity nil)
+      (format stream "class: ~a lexeme: ~a value: ~S position: ~a" (gethash class *token-class-to-name*) lexeme value position))))
 
 (defun synthetic-eof ()
   "Returns a synthetic EOF token. This is used to mark the end of the input."
-  (make-instance 'token
-    :class @eof
-    :lexeme ""))
+  (token @eof "" nil nil))
 
-(defun token-class= (token class)
+(defun token-class= (token rhs-class)
   "Returns true if the token's class is equal to the given class."
-  (eq (token-class token) class))
+  (with-slots (class) token
+    (eq class rhs-class)))
 
 (define-condition lexer-error (error)
   ((message
@@ -306,7 +301,7 @@ This will advance the `base' cursor to the `look-ahead' cursor and return the to
 "
   (with-slots (base look-ahead) lexer
     (let* ((lexeme (source:cursor-value base :end-cursor look-ahead))
-            (token (make-instance 'token :class token-class :lexeme lexeme :value (funcall transform-value lexeme) :position (source:cursor-position base))))
+            (token (token token-class lexeme (funcall transform-value lexeme) (source:cursor-position base))))
       (setf base (source:cursor-clone look-ahead))
       token)))
 

@@ -1,29 +1,9 @@
 (in-package :cl-ruby.source)
 
-(defclass source-position ()
-  ((line
-     :reader line
-     :initarg :line
-     :initform 1
-     :type (integer 1 *))
-    (column
-      :reader column
-      :initarg :column
-      :initform 1
-      :type (integer 1 *))
-    (offset
-      :reader offset
-      :initarg :offset
-      :initform 0
-      :type (integer 0 *)))
-  (:documentation "A source position represents a position in a source code."))
-
-(defmethod print-object ((position source-position) stream)
-  (print-unreadable-object (position stream :type t)
-    (format stream "Line: ~D Column: ~D Offset: ~D"
-      (line position)
-      (column position)
-      (offset position))))
+(s:defconstructor source-position
+  (line (integer 1 *))
+  (column (integer 1 *))
+  (offset (integer 0 *)))
 
 (defun format-position (position &optional stream)
   "Prints the source position to the standard output."
@@ -209,7 +189,7 @@
 
 (defun cursor-position (cursor)
   "Returns the source position of the cursor."
-  (make-instance 'source-position
-    :line (line cursor)
-    :column (column cursor)
-    :offset (offset cursor)))
+  (source-position
+    (line cursor)
+    (column cursor)
+    (offset cursor)))
