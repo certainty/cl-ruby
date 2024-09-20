@@ -2,134 +2,91 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (deftype token-class ()
-    "A type representing the class of a token."
+    "A type representing the type of a specific token."
     '(unsigned-byte 8))
 
-  (defvar *token-class-id-seq* 0)
+  (defvar *token-class-id-seq*)
   (declaim (type token-class *token-class-id-seq*))
 
-  (defvar *token-class-to-name* (make-hash-table))
-  (defvar *token-name-to-class* (make-hash-table))
+  (defvar *token-class-to-name*)
+  (defvar *keyword-token-classes*)
 
   (setf *token-class-id-seq* 0)
   (setf *token-class-to-name* (make-hash-table))
-  (setf *token-name-to-class* (make-hash-table)))
+  (setf *keyword-token-classes* (make-hash-table :test 'equal)))
 
-(defmacro deftoken-class (name &optional (documentation ""))
-  "Defines a constant for the given name and assigns it a unique integer value."
+(defmacro deftoken-class (name)
+  "Define a token class with the given name. This will define a constant with the given name and a unique id. It will also define a lookup table for the name to class and class to name."
   (let ((id (incf *token-class-id-seq*)))
     `(progn
-       (s:defconst ,name ,id ,documentation)
-       (setf (gethash ,id *token-class-to-name*) ',name)
-       (setf (gethash ',name *token-name-to-class*) ,id))))
+      (s:defconst ,name ,id)
+      (setf (gethash ,id *token-class-to-name*) ',name))))
+
+(defmacro deftoken-class* (&rest names)
+  `(progn
+     ,@(loop :for name :in names
+         :collect `(deftoken-class ,name))))
+
+(defmacro defkeyword-class (name lexeme)
+  `(progn
+     (deftoken-class ,name)
+     (setf (gethash ,lexeme *keyword-token-classes*) ,name)))
+
+(defmacro defkeyword-class* (&rest keywords)
+  `(progn
+     ,@(loop :for (name lexeme) :on keywords :by #'cddr
+         :collect `(defkeyword-class ,name ,(string-downcase lexeme)))))
 
 ;;; https://github.com/ruby/ruby/blob/master/ext/ripper/lib/ripper/lexer.rb
 
 ;; special
-(deftoken-class @eof "End of file")
-(deftoken-class @illegal "Illegal token")
-(deftoken-class @ignored "Ignored token")
+(deftoken-class* @eof @illegal @ignored)
 
 ;; whitespace
-(deftoken-class @space "Space")
-(deftoken-class @newline "Newline")
+(deftoken-class* @space @newline)
 
 ;; punctuation
-(deftoken-class @semicolon "Semicolon")
-(deftoken-class @comma "Comma")
-(deftoken-class @dot "Dot")
-(deftoken-class @lbrace "Left brace")
-(deftoken-class @rbrace "Right brace")
-(deftoken-class @lparen "Left parenthesis")
-(deftoken-class @rparen "Right parenthesis")
-(deftoken-class @lbracket "Left bracket")
-(deftoken-class @rbracket "Right bracket")
+(deftoken-class* @semicolon @comma @dot @lbrace @rbrace @lparen @rparen @lbracket @rbracket)
 
 ;; operators
-(deftoken-class @scope "Scope")
+(deftoken-class* @scope)
 
-(deftoken-class @identifier "Identifier")
-(deftoken-class @constant "Constant")
-(deftoken-class @symbol "Symbol")
-
-(deftoken-class @ivar "Instance variable")
-(deftoken-class @cvar "Class variable")
-(deftoken-class @gvar "Global variable")
+;; literals
+(deftoken-class* @identifier @constant @symbol @ivar @cvar @gvar)
 
 ;; keywords
-(deftoken-class @kw_def "def")
-(deftoken-class @kw_class "class")
-(deftoken-class @kw_module "module")
-(deftoken-class @kw_if "if")
-(deftoken-class @kw_else "else")
-(deftoken-class @kw_elsif "elsif")
-(deftoken-class @kw_unless "unless")
-(deftoken-class @kw_case "case")
-(deftoken-class @kw_when "when")
-(deftoken-class @kw_while "while")
-(deftoken-class @kw_until "until")
-(deftoken-class @kw_for "for")
-(deftoken-class @kw_in "in")
-(deftoken-class @kw_do "do")
-(deftoken-class @kw_begin "begin")
-(deftoken-class @kw_rescue "rescue")
-(deftoken-class @kw_ensure "ensure")
-(deftoken-class @kw_then "then")
-(deftoken-class @kw_next "next")
-(deftoken-class @kw_break "break")
-(deftoken-class @kw_return "return")
-(deftoken-class @kw_retry "retry")
-(deftoken-class @kw_end "end")
-(deftoken-class @kw_yield "yield")
-(deftoken-class @kw_super "super")
-(deftoken-class @kw_self "self")
-(deftoken-class @kw_true "true")
-(deftoken-class @kw_false "false")
-(deftoken-class @kw_nil "nil")
-(deftoken-class @kw_alias "alias")
-(deftoken-class @kw_undef "undef")
-(deftoken-class @kw_defined "defined?")
+(defkeyword-class*
+  @kw_def "def"
+  @kw_class "class"
+  @kw_module "module"
+  @kw_if "if"
+  @kw_next "next"
+  @kw_else "else"
+  @kw_elsif "elsif"
+  @kw_unless "unless"
+  @kw_case "case"
+  @kw_when "when"
+  @kw_while "while"
+  @kw_until "until"
+  @kw_for "for"
+  @kw_in "in"
+  @kw_do "do"
+  @kw_begin "begin"
+  @kw_rescue "rescue"
+  @kw_ensure "ensure"
+  @kw_end "end"
+  @kw_yield "yield"
+  @kw_super "super"
+  @kw_self "self"
+  @kw_true "true"
+  @kw_false "false"
+  @kw_nil "nil"
+  @kw_alias "alias"
+  @kw_undef "undef"
+  @kw_defined "defined?")
 
-(s:defconst +keywords+
-  (s:dict
-    "def" @kw_def
-    "class" @kw_class
-    "module" @kw_module
-    "if" @kw_if
-    "else" @kw_else
-    "elsif" @kw_elsif
-    "unless" @kw_unless
-    "case" @kw_case
-    "when" @kw_when
-    "while" @kw_while
-    "until" @kw_until
-    "for" @kw_for
-    "in" @kw_in
-    "do" @kw_do
-    "begin" @kw_begin
-    "rescue" @kw_rescue
-    "ensure" @kw_ensure
-    "then" @kw_then
-    "next" @kw_next
-    "break" @kw_break
-    "return" @kw_return
-    "retry" @kw_retry
-    "end" @kw_end
-    "yield" @kw_yield
-    "super" @kw_super
-    "self" @kw_self
-    "true" @kw_true
-    "false" @kw_false
-    "nil" @kw_nil
-    "alias" @kw_alias
-    "undef" @kw_undef
-    "defined?" @kw_defined))
-
-(deftoken-class @op_and "and")
-(deftoken-class @op_or "or")
-(deftoken-class @op_not "not")
-
-;; todo define lookup table for keywords
+;; operators
+(deftoken-class* @op_and @op_or @op_not)
 
 (s:defconstructor token
   (class token-class)
@@ -141,10 +98,6 @@
   (with-slots (class lexeme value position) token
     (print-unreadable-object (token stream :type t :identity nil)
       (format stream "class: ~a lexeme: ~a value: ~S position: ~a" (gethash class *token-class-to-name*) lexeme value position))))
-
-(defun synthetic-eof ()
-  "Returns a synthetic EOF token. This is used to mark the end of the input."
-  (token @eof "" nil nil))
 
 (defun token-class= (token rhs-class)
   "Returns true if the token's class is equal to the given class."
@@ -234,7 +187,6 @@
         ;; comments
 
         ;; punctuation
-
         ((char= c #\;) (accept lexer @semicolon))
         ((char= c #\,) (accept lexer @comma))
         ((char= c #\.) (accept lexer @dot))
@@ -311,7 +263,7 @@
 (defun scan-identifier-or-keyword (lexer)
   (advance-while lexer #'identifier-char-p)
   (let ((lexeme (current-lexeme lexer)))
-    (a:if-let ((kw (gethash lexeme +keywords+)))
+    (a:if-let ((kw (gethash lexeme *keyword-token-classes*)))
       (accept lexer kw)
       (accept lexer @identifier :include-lexeme t))))
 
@@ -361,7 +313,7 @@ Example:
 "
   (restart-case (scan-token lexer)
     (skip-to-next-token ()
-      (incf (slot-value lexer error-count))
+      (incf (slot-value lexer 'error-count))
       (recover lexer)
       (accept lexer @ignored))))
 
