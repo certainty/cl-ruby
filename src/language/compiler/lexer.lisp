@@ -258,7 +258,8 @@
   (or
     (sb-unicode:alphabetic-p c)
     (digit-char-p c)
-    (char= c #\_)))
+    (char= c #\_)
+    (char= c #\?)))
 
 (defun scan-identifier-or-keyword (lexer)
   (advance-while lexer #'identifier-char-p)
