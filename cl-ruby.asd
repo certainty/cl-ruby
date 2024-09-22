@@ -21,7 +21,10 @@
         (:module "parser"
           :components
           ((:file "infrastructure")
-            (:file "language")))))))
+            (:file "language")))
+        (:module "codegen"
+          :components
+          ((:file "codegen")))))))
 
 (defsystem :cl-ruby/rubyc
   :description "The ruby compiler and interpreter"

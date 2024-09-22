@@ -41,3 +41,8 @@
   (:nicknames :parser)
   (:local-nicknames (:s :serapeum) (:a :alexandria)))
 
+(defpackage :cl-ruby.codegen
+  (:use :cl :parser)
+  (:nicknames :codegen)
+  (:local-nicknames (:s :serapeum) (:a :alexandria)))
+
