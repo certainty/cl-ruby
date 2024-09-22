@@ -7,11 +7,9 @@
   :source-control (:git "https://github.com/certainty/cl-ruby")
   :version "0.1"
   :depends-on (:serapeum
-
                 :str
                 :cl-ppcre
-
-                :maxpc)
+                )
   :serial t
   :pathname "src/language"
   :components
@@ -19,8 +17,11 @@
     (:module "compiler"
       :components
       ((:file "source")
-       (:file "lexer")
-       (:file "parser")))))
+        (:file "lexer")
+        (:module "parser"
+          :components
+          ((:file "infrastructure")
+            (:file "language")))))))
 
 (defsystem :cl-ruby/rubyc
   :description "The ruby compiler and interpreter"

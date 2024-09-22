@@ -24,11 +24,20 @@
 
 (defpackage :cl-ruby.lexer
   (:use :cl)
+  (:nicknames :lexer)
   (:local-nicknames (:s :serapeum) (:a :alexandria))
   (:shadow :class)
-  (:export :lex))
+  (:export
+    :token
+    :tokenize
+    :token-class
+    :token-class=
+    :@lparen
+    :@rparen
+    ))
 
 (defpackage :cl-ruby.parser
-  (:use :cl)
-  (:export :parse))
+  (:use :cl :lexer)
+  (:nicknames :parser)
+  (:local-nicknames (:s :serapeum) (:a :alexandria)))
 

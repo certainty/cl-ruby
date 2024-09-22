@@ -1,12 +1,8 @@
 (in-package :cl-ruby.lexer)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (deftype token-class ()
-    "A type representing the type of a specific token."
-    '(unsigned-byte 8))
-
   (defvar *token-class-id-seq*)
-  (declaim (type token-class *token-class-id-seq*))
+  (declaim (type (unsigned-byte 8) *token-class-id-seq*))
 
   (defvar *token-class-to-name*)
   (defvar *keyword-token-classes*)
@@ -89,7 +85,7 @@
 (deftoken-class* @op_and @op_or @op_not)
 
 (s:defconstructor token
-  (class token-class)
+  (class (unsigned-byte 8))
   (lexeme (or null string))
   (value (or null t))
   (position (or null source:source-position)))
@@ -154,7 +150,7 @@
     (print-unreadable-object (lexer stream :type t :identity t)
       (format stream "input: ~a base: ~a look-ahead: ~a" input base look-ahead))))
 
-(defun lex (input)
+(defun tokenize (input)
   "Scans the input string and returns the values:
     - a vector of tokens
     - a boolean indicating if there were any errors
@@ -244,13 +240,13 @@
 
         (t (error 'invalid-token :position (source:cursor-position look-ahead) :message "Invalid token"))))))
 
-(defun scan-number (lexer c)
+(defun scan-number (lexer)
   nil)
 
 (defun scan-char (lexer)
   nil)
 
-(defun scan-string (lexer c)
+(defun scan-string (lexer)
   nil)
 
 
@@ -285,12 +281,14 @@
 ;;; Scanning functions and combinators
 (defun recover (lexer)
   "Advances the scanner to the next statement boundary, which is either a newline or a semicolon."
-  (advance-until lexer #'statement-boundary-p)
+  (advance-until lexer #'token-boundary-p)
   lexer)
 
-(defun statement-boundary-p (c)
+(defun token-boundary-p (c)
   (when c
-    (or (char= c #\newline) (char= c #\;))))
+    (or
+      (sb-unicode:whitespace-p c)
+      (char= c #\;))))
 
 (defmacro skip-on-error (&body body)
   "Use this to wrap the scanning process and it will handle scan errors by inserting the special `@invalid' token and continue scanning at the next token"
@@ -307,10 +305,16 @@
 (defun next-token (lexer)
   "Attempt to scan the next token and return it. This is the main interface to the lexer.
 Example:
-  ```  
+  
     (defvar lexer (make-lexer \"1 + 2\")
     (next-token lexer)
-  ```
+If an error is encountered it will signal an `invalid-token' condition.
+You can use the `skip-on-error' macro to handle errors and continue scanning.
+
+  (skip-on-error
+    (next-token lexer)))
+
+If you skip the error, the token stream will include a special `@ignored' token for the part of the input that has been skipped.
 "
   (restart-case (scan-token lexer)
     (skip-to-next-token ()
