@@ -42,13 +42,13 @@
 (deftoken-class* @space @newline)
 
 ;; punctuation
-(deftoken-class* @semicolon @comma @dot @lbrace @rbrace @lparen @rparen @lbracket @rbracket)
+(deftoken-class* @semicolon @comma @dot @lbrace @rbrace @lparen @rparen @lbracket @rbracket @colon)
 
 ;; operators
-(deftoken-class* @scope)
+(deftoken-class* @op_scope @op_and @op_or @op_not @op_qmark)
 
 ;; literals
-(deftoken-class* @identifier @constant @symbol @ivar @cvar @gvar)
+(deftoken-class* @identifier @constant @number @string @symbol @ivar @cvar @gvar)
 
 ;; keywords
 (defkeyword-class*
@@ -81,8 +81,6 @@
   @kw_undef "undef"
   @kw_defined "defined?")
 
-;; operators
-(deftoken-class* @op_and @op_or @op_not)
 
 (s:defconstructor token
   (class (unsigned-byte 8))
@@ -179,7 +177,6 @@
         ((sb-unicode:whitespace-p c)
           (advance-while lexer #'sb-unicode:whitespace-p)
           (accept lexer @space))
-
         ;; comments
 
         ;; punctuation
@@ -193,12 +190,15 @@
         ((char= c #\() (accept lexer @lparen))
         ((char= c #\)) (accept lexer @rparen))
 
-        ;; operators
         ((char= c #\:)
-          (alexandria:when-let ((c (peek lexer)))
-            (when (char= c #\:)
-              (advance lexer)
-              (accept lexer @scope))))
+          (advance lexer)
+          (let ((c (peek lexer)))
+            (retreat lexer)
+            (when c
+              (cond
+                ((inter-token-space-p c) (accept lexer @colon))
+                ((char= c #\:) (accept lexer @op_scope))
+                (t (scan-symbol-literal lexer))))))
 
         ((char= c #\*) nil)
         ((char= c #\+) nil)
@@ -206,17 +206,23 @@
         ((char= c #\&) nil)
         ((char= c #\|) nil)
         ((char= c #\~) nil)
+
+        ((char= c #\?)
+          (advance lexer)
+          (let ((c (peek lexer)))
+            (retreat lexer)
+            (when c 
+              (if (inter-token-space-p c)
+                (accept lexer @op_qmark)
+                (scan-single-char-string-literal lexer)))))
         
         ;; number literals
-        ((digit-char-p c) (scan-number lexer c))
-
-        ;; char literals
-        ((char= c #\?) (scan-char lexer))
+        ((digit-char-p c) (scan-number-literal lexer))
 
         ;; string literals
-        ((char= c #\") (scan-string lexer c))
+        ((char= c #\") (scan-string-literal lexer))
 
-        ((char= c #\') (scan-string lexer c))
+        ((char= c #\') (scan-string-literal lexer))
 
         ;; variables
         ((char= c #\$)
@@ -240,15 +246,21 @@
 
         (t (error 'invalid-token :position (source:cursor-position look-ahead) :message "Invalid token"))))))
 
-(defun scan-number (lexer)
+(defun scan-number-literal (lexer)
+  (advance-while lexer #'digit-char-p)
+  (accept lexer @number :transform-value #'parse-integer :include-lexeme t))
+
+(defun scan-single-char-string-literal (lexer)
   nil)
 
-(defun scan-char (lexer)
+(defun scan-string-literal (lexer)
   nil)
 
-(defun scan-string (lexer)
+(defun scan-symbol-literal (lexer)
   nil)
 
+(defun inter-token-space-p (c)
+  (sb-unicode:whitespace-p c))
 
 (defun identifier-char-p (c)
   (or
@@ -362,6 +374,11 @@ If you skip the error, the token stream will include a special `@ignored' token 
   (with-slots (look-ahead) lexer
     (prog1 (source:cursor-value look-ahead)
       (source:cursor-advance look-ahead))))
+
+(defun retreat (lexer)
+  "Retreats the look-ahead cursor by one and returns the character at the position it pointed to"
+  (with-slots (look-ahead) lexer
+    (source:cursor-retreat look-ahead)))
 
 (defun accept (lexer token-class &key transform-value include-lexeme)
   "Accepts the input between the `base' and `look-ahead' cursor as the next token with the provided token-class.
