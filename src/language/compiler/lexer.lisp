@@ -45,7 +45,7 @@
 (deftoken-class* @semicolon @comma @dot @lbrace @rbrace @lparen @rparen @lbracket @rbracket @colon)
 
 ;; operators
-(deftoken-class* @op_scope @op_and @op_or @op_not @op_qmark)
+(deftoken-class* @op_scope @op_&& @op_|| @op_not @op_? @op_= @op_== @op_=== @op_<=> @op_+ @op_+= @op_- @op_-= @op_/ @op_* @op_** @op_*= @op_%)
 
 ;; literals
 (deftoken-class* @identifier @constant @number @string @symbol @ivar @cvar @gvar)
@@ -200,12 +200,38 @@
                 ((char= c #\:) (accept lexer @op_scope))
                 (t (scan-symbol-literal lexer))))))
 
-        ((char= c #\*) nil)
-        ((char= c #\+) nil)
+        ((char= c #\*)
+          (advance lexer)
+          (cond
+            ((char= (peek lexer) #\=) (accept lexer @op_*=))
+            ((char= (peek lexer) #\*) (accept lexer @op_**))
+            (t (retreat lexer)
+               (accept lexer @op_*))))
+        ((char= c #\+)
+          (advance lexer)
+          (cond
+            ((char= (peek lexer) #\=) (accept lexer @op_+=))
+            (t
+              (retreat lexer)
+              (accept lexer @op_+))))
         ((char= c #\-) nil)
         ((char= c #\&) nil)
         ((char= c #\|) nil)
         ((char= c #\~) nil)
+
+        ((char= c #\=)
+          (advance lexer)
+          (cond
+            ((char= (peek lexer) #\=)
+              (advance lexer)
+              (if (char= (peek lexer) #\=)
+                (accept lexer @op_===)
+                (progn
+                  (retreat lexer)
+                  (accept lexer @op_==))))
+            (t
+              (retreat lexer)
+              (accept lexer @op_=))))
 
         ((char= c #\?)
           (advance lexer)
@@ -213,7 +239,7 @@
             (retreat lexer)
             (when c 
               (if (inter-token-space-p c)
-                (accept lexer @op_qmark)
+                (accept lexer @op_?)
                 (scan-single-char-string-literal lexer)))))
         
         ;; number literals
