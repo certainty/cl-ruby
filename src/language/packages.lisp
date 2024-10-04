@@ -2,47 +2,57 @@
 
 (defpackage :cl-ruby.source
   (:use :cl)
-  (:nicknames :source)
-  (:local-nicknames (:s :serapeum) (:a :alexandria))
+  (:local-nicknames
+    (:s :serapeum)
+    (:a :alexandria))
   (:export
     :source-position
     :source-origin
     :format-position
-    :from-file
-    :from-string
     :source-code
-    :make-source-code
-    :cursor
-    :cursor-from-beginning
-    :cursor-eofp
-    :cursor-advance
-    :cursor-retreat
-    :cursor-value
-    :cursor-clone
-    :cursor-rewind
-    :cursor-position))
+    :with-source-code))
 
 (defpackage :cl-ruby.lexer
   (:use :cl)
-  (:nicknames :lexer)
-  (:local-nicknames (:s :serapeum) (:a :alexandria))
+  (:local-nicknames
+    (:s :serapeum)
+    (:a :alexandria)
+    (:source :cl-ruby.source))
   (:shadow :class)
   (:export
-    :token
-    :tokenize
-    :token-class
-    :token-class=
-    :@lparen
-    :@rparen
-    ))
+    :make-lexer
+    :next-token))
 
 (defpackage :cl-ruby.parser
-  (:use :cl :lexer)
-  (:nicknames :parser)
-  (:local-nicknames (:s :serapeum) (:a :alexandria)))
+  (:use :cl :cl-ruby.lexer)
+  (:local-nicknames
+    (:s :serapeum)
+    (:a :alexandria)
+    (:source :cl-ruby.source))
+  (:export
+    :parse-error
+    :parse-failure
+    :parse-source
+    :collecting-errors))
 
 (defpackage :cl-ruby.codegen
-  (:use :cl :parser)
-  (:nicknames :codegen)
-  (:local-nicknames (:s :serapeum) (:a :alexandria)))
+  (:use :cl)
+  (:local-nicknames
+    (:s :serapeum)
+    (:a :alexandria))
+  (:export
+    :emit-sexp))
+
+
+(defpackage :cl-ruby.compiler
+  (:use :cl)
+  (:local-nicknames
+    (:s :serapeum)
+    (:a :alexandria)
+    (:source :cl-ruby.source)
+    (:lexer :cl-ruby.lexer)
+    (:parser :cl-ruby.parser)
+    (:codegen :cl-ruby.codegen))
+  (:export
+    :transpile))
 

@@ -7,6 +7,7 @@
   :source-control (:git "https://github.com/certainty/cl-ruby")
   :version "0.1"
   :depends-on (:serapeum
+                :alexandria
                 :str
                 :cl-ppcre
                 )
@@ -17,14 +18,15 @@
     (:module "compiler"
       :components
       ((:file "source")
-        (:file "lexer")
-        (:module "parser"
+       (:file "lexer")
+       (:module "parser"
           :components
           ((:file "infrastructure")
             (:file "language")))
-        (:module "codegen"
+       (:module "codegen"
           :components
-          ((:file "codegen")))))))
+         ((:file "codegen")))
+        (:file "compiler")))))
 
 (defsystem :cl-ruby/rubyc
   :description "The ruby compiler and interpreter"
