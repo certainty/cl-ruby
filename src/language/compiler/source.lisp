@@ -25,8 +25,16 @@
   (print-unreadable-object (origin stream :type t)
     (format stream "~A" (slot-value origin 'file-path))))
 
+(defun from-file (file-path)
+  "Creates a source origin from a file."
+  (make-instance 'from-file :file-path file-path))
+
 (defclass from-string (source-origin)
-  ((context
+  ((content
+     :initarg :content
+     :initform (a:required-argument "content")
+     :type string)
+   (context
      :initarg :context
      :initform (a:required-argument "context")
      :type string))
@@ -34,7 +42,11 @@
 
 (defmethod print-object ((origin from-string) stream)
   (print-unreadable-object (origin stream :type t)
-    (format stream "~A" (slot-value origin 'code))))
+    (format stream "~A" (slot-value origin 'context))))
+
+(defun from-string (string &optional (context ""))
+  "Creates a source origin from a string."
+  (make-instance 'from-string :content string :context context))
 
 (defclass source-code ()
   ((origin
@@ -42,6 +54,7 @@
      :initform (a:required-argument "origin")
      :type source-origin)
     (stream
+      :reader source-code-stream
       :initarg :stream
       :initform (a::required-argument "stream")
       :type stream))
@@ -51,15 +64,34 @@
  (print-unreadable-object (source-code stream :type t)
    (format stream "Origin: ~A" (slot-value source-code 'origin))))
 
-(defgeneric with-source-code (origin code &rest args)
+(defgeneric open-source-code (origin)
   (:documentation "Creates a source code object."))
 
-(defmethod with-source-code ((origin pathname) callback &rest args)
-  (with-open-file (stream origin :direction :input)
-    (funcall callback
-      (make-instance 'source-code :origin (apply #'make-instance 'from-file :file-path origin args) :stream stream))))
+(defmethod open-source-code ((origin from-file))
+  "Creates a source code object."
+  (with-slots (file-path) origin
+    (let ((stream (open file-path :direction :input)))
+      (make-instance 'source-code :origin origin :stream stream))))
 
-(defmethod with-source-code ((origin string) callback &rest args)
-  (with-input-from-string (stream origin)
-    (funcall callback
-      (make-instance 'source-code :origin (apply #'make-instance 'from-string args) :stream stream))))
+(defmethod open-source-code ((origin from-string))
+  "Creates a source code object."
+  (with-slots (content) origin
+    (let ((stream (make-string-input-stream content)))
+      (make-instance 'source-code :origin origin :stream stream))))
+
+(defun close-source-code (source-code)
+  "Closes the source code object."
+  (with-slots (stream) source-code
+    (close stream)))
+
+(defmacro with-source-code ((source-code origin-expr) &body body)
+  "Executes the body with the source code object."
+  `(let ((,source-code (open-source-code ,origin-expr)))
+     (unwind-protect
+       (progn ,@body)
+       (close-source-code ,source-code))))
+
+(defun eofp (source-code)
+  "Returns T if the end of the source code has been reached."
+  (with-slots (stream) source-code
+    (eq :eof (read-char stream nil :eof))))

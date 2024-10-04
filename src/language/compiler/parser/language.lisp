@@ -2,5 +2,7 @@
 
 (defclass ast-node () ())
 
-
+(defun <expression (state)
+  (declare (ignore state))
+  nil)
 

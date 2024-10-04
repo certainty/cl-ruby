@@ -18,7 +18,10 @@
     (:module "compiler"
       :components
       ((:file "source")
-       (:file "lexer")
+        (:module "lexer"
+          :components
+         ((:file "token")
+           (:file "scanner"))) 
        (:module "parser"
           :components
           ((:file "infrastructure")

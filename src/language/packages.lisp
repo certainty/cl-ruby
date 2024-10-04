@@ -10,7 +10,10 @@
     :source-origin
     :format-position
     :source-code
-    :with-source-code))
+    :source-code-stream
+    :with-source-code
+    :open-source-code
+    :close-source-code))
 
 (defpackage :cl-ruby.lexer
   (:use :cl)
@@ -32,7 +35,7 @@
   (:export
     :parse-error
     :parse-failure
-    :parse-source
+    :parse
     :collecting-errors))
 
 (defpackage :cl-ruby.codegen

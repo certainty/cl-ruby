@@ -23,18 +23,9 @@
       :initform nil
       :type state)))
 
-(defun parse (input &key (rule '<expression))
-  (cl-ruby.source:with-source-code input #'(lambda (stream) (parse-source stream :rule rule))))
-
-(defun parse-source (source-code &key (rule '<expression))
-  (let ((state (make-instance 'state :scanner (make-lexer source-code))))
-    (parse* state rule)))
-
-(defun parse* (state rule)
-  (restart-case (funcall rule)
-    (synchronize ()
-      :report "Attempt to continue parsing after the next statement boundary"
-      (ignore-errors (synchronize state)))))
+(defun parse (stream &key (rule '<expression))
+  (let ((state (make-instance 'state :scanner (make-lexer stream))))
+    (funcall rule state)))
 
 (defun synchronize (state)
   (declare (ignore state))
@@ -58,3 +49,8 @@ It collects all errors and returns the following values
                         ,@body)))
        (values (if ,errors nil ,result) ,errors))))
 
+(defun parse-failure (state message)
+  (restart-case (error 'parse-failure :message message :state state)
+    (synchronize ()
+      :report "Attempt to continue parsing after the next statement boundary"
+      (ignore-errors (synchronize state)))))
