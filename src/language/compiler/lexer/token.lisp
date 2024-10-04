@@ -88,13 +88,18 @@
   (position (or null source:source-position)))
 
 (defmethod print-object ((token token) stream)
-  (with-slots (class lexeme value position) token
+  (with-slots (class lexeme position) token
     (print-unreadable-object (token stream :type t :identity nil)
-      (format stream "class: ~a lexeme: ~a value: ~S position: ~a" (gethash class *token-class-to-name*) lexeme value position))))
+      (format stream "class: ~a lexeme: ~a position: ~a" (gethash class *token-class-to-name*) lexeme position))))
 
 (defun token-class= (token rhs-class)
   "Returns true if the token's class is equal to the given class."
   (with-slots (class) token
     (eq class rhs-class)))
 
-
+(defmacro token-bind ((cls lexeme) token-expr &body body)
+  (let ((token-var (gensym)))
+    `(let* ((,token-var ,token-expr)
+             (,cls (token-class ,token-var))
+             (,lexeme (token-lexeme ,token-var)))
+       ,@body)))

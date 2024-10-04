@@ -66,16 +66,32 @@
 (defmethod print-object ((lexer lexer) stream)
   (print-unreadable-object (lexer stream :type t :identity t)
     (with-slots (base current buffer-water-mark eof buffer) lexer
-      (format stream "base: ~a, current: ~a, buffer-water-mark: ~a, eof: ~a, buffer: ~a" base current buffer-water-mark eof buffer))))
+      (format stream "base: ~a, current: ~a, buffer-water-mark: ~a, eof: ~a" base current buffer-water-mark eof))))
 
 (defun scan-token (lexer &key (mode :ruby))
   "Scans the next token from input or returns nil if we have reached the end of the input."
   (declare (ignore mode))
-  (cond
-    ((at-end-p lexer) nil)
-    (t (error 'invalid-token :message "Invalid token" :position (make-position lexer)))))
+  (unless (at-end-p lexer)
+    (let ((c (advance lexer)))
+      (s:select c
+        (#\( (accept lexer @lparen))
+        (#\) (accept lexer @rparen))
+        (#\[ (accept lexer @lbracket))
+        (#\] (accept lexer @rbracket))
+        (#\{ (accept lexer @lbrace))
+        (#\} (accept lexer @rbrace))
+        (#\; (accept lexer @semicolon))
+        (#\, (accept lexer @comma))
+        (t (accept lexer @illegal))))))
+  
+(defun matches (state chr)
+  (unless (at-end-p state)
+    (when (char= (peek state) chr)
+      (advance state)
+      t)))
 
 (defun advance* (state n)
+  "Advance `n' times in a loop and return the last character."
   (loop :repeat n
     :for c = (advance state)
     :while c
@@ -93,9 +109,14 @@
    'abcdt'
       ^-- cursor
  " 
-  (with-slots (current) state
+  (with-slots (current line column offset) state
     (a:when-let ((c (peek state)))
+      (when (char= c #\Newline)
+        (incf line)
+        (setf column 0))
       (incf current)
+      (incf column)
+      (incf offset)
       c)))
 
 (defun peek (state &optional (offset 0))
@@ -110,7 +131,7 @@
 (defun make-position (lexer)
   "Creates a new position object for the current position in the input."
   (with-slots (offset line column) lexer
-    (make-instance 'position :offset offset :line line :column column)))
+    (source:source-position line column offset)))
 
 (defun refill-buffer (state)
   "Refills the internal buffer with fresh data from the underlying input.
@@ -142,7 +163,8 @@
   (with-slots (buffer base current) state
     (subseq buffer base current)))
 
-(defun accept (state token-class)
+(defun accept (state token-class &key (include-lexeme nil))
   "Accepts the current token and returns it."
-  (token token-class (current-lexeme state) (make-position state)))
-
+	(prog1 (token token-class (and include-lexeme (current-lexeme state)) (make-position state))
+    (with-slots (base current) state
+      (setf base current))))
