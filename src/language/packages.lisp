@@ -24,7 +24,12 @@
   (:shadow :class)
   (:export
     :make-lexer
-    :next-token))
+    :scan-token
+    :token-class
+    :token-lexeme
+    :token-position
+    :@eof
+    :@illegal))
 
 (defpackage :cl-ruby.parser
   (:use :cl :cl-ruby.lexer)
@@ -36,16 +41,22 @@
     :parse-error
     :parse-failure
     :parse
-    :collecting-errors))
+    :collecting-errors
+    :<ast-node>
+    :<expression>
+    :<literal>
+    :literal-token
+    :literal-value))
 
 (defpackage :cl-ruby.codegen
-  (:use :cl)
+  (:use :cl :cl-ruby.parser)
   (:local-nicknames
     (:s :serapeum)
-    (:a :alexandria))
+    (:a :alexandria)
+    (:source :cl-ruby.source)
+    (:parser :cl-ruby.parser))
   (:export
     :emit-sexp))
-
 
 (defpackage :cl-ruby.compiler
   (:use :cl)

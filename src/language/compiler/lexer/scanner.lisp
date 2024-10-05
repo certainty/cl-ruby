@@ -1,19 +1,5 @@
 (in-package :cl-ruby.lexer)
 
-(define-condition lexer-error (error)
-  ((message
-     :reader lexer-error-message
-     :initarg :message)
-   (span
-     :reader lexer-error-position
-     :initarg :position))
-  (:report (lambda (condition stream)
-             (format stream "Lexer error at ~a:  ~a"
-               (lexer-error-position condition)
-               (lexer-error-message condition)))))
-
-(define-condition invalid-token (lexer-error) ())
-
 (defparameter *default-buffer-size* 4096)
 
 (defclass lexer ()
@@ -68,21 +54,24 @@
     (with-slots (base current buffer-water-mark eof buffer) lexer
       (format stream "base: ~a, current: ~a, buffer-water-mark: ~a, eof: ~a" base current buffer-water-mark eof))))
 
-(defun scan-token (lexer &key (mode :ruby))
+(defun scan-token (scanner &key (mode :ruby))
   "Scans the next token from input or returns nil if we have reached the end of the input."
   (declare (ignore mode))
-  (unless (at-end-p lexer)
-    (let ((c (advance lexer)))
-      (s:select c
-        (#\( (accept lexer @lparen))
-        (#\) (accept lexer @rparen))
-        (#\[ (accept lexer @lbracket))
-        (#\] (accept lexer @rbracket))
-        (#\{ (accept lexer @lbrace))
-        (#\} (accept lexer @rbrace))
-        (#\; (accept lexer @semicolon))
-        (#\, (accept lexer @comma))
-        (t (accept lexer @illegal))))))
+
+  (when (at-end-p scanner)
+    (return-from scan-token (accept scanner @eof)))
+  
+  (let ((c (advance scanner)))
+   (s:select c
+     (#\( (accept scanner @lparen))
+     (#\) (accept scanner @rparen))
+     (#\[ (accept scanner @lbracket))
+     (#\] (accept scanner @rbracket))
+     (#\{ (accept scanner @lbrace))
+     (#\} (accept scanner @rbrace))
+     (#\; (accept scanner @semicolon))
+     (#\, (accept scanner @comma))
+     (t   (accept scanner @illegal)))))
   
 (defun matches (state chr)
   (unless (at-end-p state)
@@ -122,7 +111,7 @@
 (defun peek (state &optional (offset 0))
   "Peek returns the current character, and does not advance the internal cursor."
   (unless (at-end-p state)
-	  (with-slots (buffer base current buffer-water-mark) state
+    (with-slots (buffer base current buffer-water-mark) state
       (when (>= current buffer-water-mark)
         (refill-buffer state))
       (unless (>= (+ offset current) buffer-water-mark)
@@ -137,16 +126,16 @@
   "Refills the internal buffer with fresh data from the underlying input.
   This also resets the internal values for `base', `current' and `buffer-water-mark'. "
   (with-slots (eof buffer input buffer-water-mark base current) state
-    (unless eof 
-	    (let ((lexeme (current-lexeme state))
-            (buffer-size (length buffer)))
+    (unless eof
+      (let ((lexeme (current-lexeme state))
+             (buffer-size (length buffer)))
         ;; there might be rare cases where the lexeme is larger than the buffer
         ;; in that case we need to adjust the buffer size
         (when (>= (length lexeme) buffer-size)
           (adjust-array buffer (+ buffer-size (floor buffer-size 2))))
         (setf (subseq buffer 0 (length lexeme)) lexeme)
         (setf buffer-water-mark (read-sequence buffer input :start (length lexeme)))
-	      (setf
+        (setf
           eof (< buffer-water-mark buffer-size)
           base 0
           current (length lexeme))))))
@@ -154,9 +143,7 @@
 (defun at-end-p (state)
   "Returns true if we have reached the end of the input."
   (with-slots (buffer-water-mark current eof) state
-    (and
-      eof
-      (>= current buffer-water-mark))))
+    (and eof (>= current buffer-water-mark))))
 
 (defun current-lexeme (state)
   "Returns the current lexeme, which is the part of the input that we have scanned so far."

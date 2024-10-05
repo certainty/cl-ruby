@@ -24,8 +24,9 @@
            (:file "scanner"))) 
        (:module "parser"
           :components
-          ((:file "infrastructure")
-            (:file "language")))
+         ((:file "infrastructure")
+           (:file "ast")
+           (:file "language")))
        (:module "codegen"
           :components
          ((:file "codegen")))
