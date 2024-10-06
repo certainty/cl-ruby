@@ -13,7 +13,9 @@
     :source-code-stream
     :with-source-code
     :open-source-code
-    :close-source-code))
+    :close-source-code
+    :from-file
+    :from-string))
 
 (defpackage :cl-ruby.lexer
   (:use :cl)
@@ -28,8 +30,10 @@
     :token-class
     :token-lexeme
     :token-position
+    :token-bind
     :@eof
-    :@illegal))
+    :@illegal
+    :@number))
 
 (defpackage :cl-ruby.parser
   (:use :cl :cl-ruby.lexer)
@@ -43,10 +47,11 @@
     :parse
     :collecting-errors
     :<ast-node>
-    :<expression>
+    :<expr>
     :<literal>
     :literal-token
-    :literal-value))
+    :literal-value
+    :make-literal))
 
 (defpackage :cl-ruby.codegen
   (:use :cl :cl-ruby.parser)
@@ -56,7 +61,7 @@
     (:source :cl-ruby.source)
     (:parser :cl-ruby.parser))
   (:export
-    :emit-sexp))
+    :generate))
 
 (defpackage :cl-ruby.compiler
   (:use :cl)
@@ -69,4 +74,3 @@
     (:codegen :cl-ruby.codegen))
   (:export
     :transpile))
-

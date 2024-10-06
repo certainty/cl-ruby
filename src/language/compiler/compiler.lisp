@@ -12,4 +12,4 @@
   "Transpile the input which is represented by `source-code' into Common Lisp source code.
    See also `cl-ruby.source:source-code`"
    (multiple-value-bind (ast symbol-table) (parser:parse (source:source-code-stream source-code))
-     (codegen:emit-sexp ast symbol-table)))
+     (codegen:generate ast symbol-table)))

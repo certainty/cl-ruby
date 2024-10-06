@@ -44,10 +44,15 @@
    It keeps track of the current position in the input string, as well as the current line and column number.
    The lexer is also responsible for handling errors, such as illegal tokens."))
 
-(defun make-lexer (stream &key (buffer-size *default-buffer-size*))
+(defgeneric make-lexer (input &key buffer-size))
+
+(defmethod make-lexer ((input stream) &key (buffer-size *default-buffer-size*))
   "Creates a new lexer for the given input string."
   (let ((buffer (make-array buffer-size :element-type 'character :adjustable t)))
-    (make-instance 'lexer :input stream :buffer buffer)))
+    (make-instance 'lexer :input input :buffer buffer)))
+
+(defmethod make-lexer ((source source:source-code) &key (buffer-size *default-buffer-size*))
+  (make-lexer (source:source-code-stream source) :buffer-size buffer-size))
 
 (defmethod print-object ((lexer lexer) stream)
   (print-unreadable-object (lexer stream :type t :identity t)
@@ -62,22 +67,39 @@
     (return-from scan-token (accept scanner @eof)))
   
   (let ((c (advance scanner)))
-   (s:select c
-     (#\( (accept scanner @lparen))
-     (#\) (accept scanner @rparen))
-     (#\[ (accept scanner @lbracket))
-     (#\] (accept scanner @rbracket))
-     (#\{ (accept scanner @lbrace))
-     (#\} (accept scanner @rbrace))
-     (#\; (accept scanner @semicolon))
-     (#\, (accept scanner @comma))
-     (t   (accept scanner @illegal)))))
+    (when (digit-char-p c)
+      (return-from scan-token (scan-number scanner)))
+
+    (s:select c
+      (#\( (accept scanner @lparen))
+      (#\) (accept scanner @rparen))
+      (#\[ (accept scanner @lbracket))
+      (#\] (accept scanner @rbracket))
+      (#\{ (accept scanner @lbrace))
+      (#\} (accept scanner @rbrace))
+      (#\; (accept scanner @semicolon))
+      (#\, (accept scanner @comma))
+      (t   (accept scanner @illegal)))))
+
+(defun scan-number (state)
+  (advance-while state #'digit-char-p)
+  (when (and (matches state #\.) (digit-char-p (peek state 1)))
+    (advance state)
+    (advance-while state #'digit-char-p))
+  (accept state @number :include-lexeme t))
   
 (defun matches (state chr)
   (unless (at-end-p state)
     (when (char= (peek state) chr)
       (advance state)
       t)))
+
+(defun advance-while (state predicate)
+  "Advance the cursor while the predicate is true."
+  (loop :for c = (peek state)
+    :while (and c (funcall predicate c))
+    :do (advance state)
+    :finally (return c)))
 
 (defun advance* (state n)
   "Advance `n' times in a loop and return the last character."

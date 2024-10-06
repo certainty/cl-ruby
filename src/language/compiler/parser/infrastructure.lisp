@@ -18,6 +18,14 @@
       :initform nil
       :type boolean)))
 
+(defmethod print-object ((state state) stream)
+  (print-unreadable-object (state stream :type t)
+    (with-slots (previous current had-errors panic-mode) state
+      (format stream "previous: ~A~%" previous)
+      (format stream "current: ~A~%" current)
+      (format stream "had-errors: ~A~%" had-errors)
+      (format stream "panic-mode: ~A~%" panic-mode))))
+
 (define-condition parser-error (error) ())
 
 (define-condition parse-failure (parser-error)
@@ -30,14 +38,23 @@
       :initform nil
       :type state)))
 
-(defun parse (stream &key (rule '<expression))
-  (let ((state (make-instance 'state :scanner (make-lexer stream))))
+(defgeneric parse (input &key rule))
+
+(defmethod parse ((input stream) &key (rule '$expr))
+  (let ((state (make-instance 'state :scanner (make-lexer input))))
     (with-slots (had-errors panic-mode) state
       (setf had-errors nil panic-mode nil)
       (advance state)
       (let ((ast (funcall rule state)))
         (expect state @eof)
         (values ast had-errors)))))
+
+(defmethod parse ((input source:source-code) &key (rule '$expr))
+  (parse (source:source-code-stream input) :rule rule))
+
+(defmethod parse ((origin source:source-origin) &key (rule '$expr))
+  (source:with-source-code (s origin)
+    (parse s :rule rule)))
 
 (defun synchronize (state)
   (declare (ignore state))
@@ -55,8 +72,8 @@ If the next token is an illegal token, a parser error is raised. "
   (with-slots (current) state
     (unless (and current (eq (token-class current) cls))
       (raise-parser-error state "Expected ~A but found ~A" cls current))
-    (advance state)
-    t))
+    (prog1 current
+      (advance state))))
 
 (defmacro collecting-errors (&body body)
   "Enables error recovery in which the parser does not fail after the first error.
@@ -90,3 +107,9 @@ It collects all errors and returns the following values
         (synchronize ()
           :report "Attempt to continue parsing after the next statement boundary"
           (ignore-errors (synchronize state)))))))
+
+(defun accept (state node)
+  (declare (ignore state))
+  (prog1 node
+    ;; maybe do something later
+    ))

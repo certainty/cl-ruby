@@ -6,6 +6,7 @@
   :maintainer "David Krentzlin"
   :source-control (:git "https://github.com/certainty/cl-ruby")
   :version "0.1"
+  :in-order-to ((test-op (test-op "cl-ruby/tests")))
   :depends-on (:serapeum
                 :alexandria
                 :str
@@ -59,3 +60,19 @@
   :components
   ((:file "packages")
     (:file "main")))
+
+(defsystem :cl-ruby/tests
+  :description "The test suite for cl-ruby"
+  :depends-on (:cl-ruby :parachute)
+  :perform (test-op (op c)
+             (declare (ignore op c))
+                    (uiop:symbol-call :cl-ruby.tests.language :run-all-tests))
+  :serial t
+  :pathname "tests"
+  :components
+  ((:module "language"
+     :components
+     ((:file "packages")
+       (:file "lexer")
+       (:file "compiler")
+       (:file "runner")))))
