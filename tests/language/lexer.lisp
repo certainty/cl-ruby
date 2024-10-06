@@ -1,7 +1,7 @@
 (in-package :cl-ruby.tests.language.lexer)
 
 (defun scan (input)
-  (cl-ruby.source:with-source-code (s (cl-ruby.source:from-string input))
+  (source:with-source-code (s (source:from-string input))
     (let ((scanner (make-lexer s)))
       (scan-token scanner))))
 
