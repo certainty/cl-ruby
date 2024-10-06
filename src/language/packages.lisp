@@ -14,8 +14,7 @@
     :with-source-code
     :open-source-code
     :close-source-code
-    :from-file
-    :from-string))
+    :origin-designator))
 
 (defpackage :cl-ruby.lexer
   (:use :cl)

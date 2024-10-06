@@ -11,48 +11,15 @@
     (format stream "offset ~D line ~D column ~D"
       offset line column)))
 
-(defclass source-origin () ()
-  (:documentation "A source origin represents the origin of a source code."))
-
-(defclass from-file (source-origin)
-  ((file-path
-     :initarg :file-path
-     :initform (alexandria:required-argument "file-path")
-     :type pathname))
-  (:documentation "A source origin that represents a file."))
-
-(defmethod print-object ((origin from-file) stream)
-  (print-unreadable-object (origin stream :type t)
-    (format stream "~A" (slot-value origin 'file-path))))
-
-(defun from-file (file-path)
-  "Creates a source origin from a file."
-  (make-instance 'from-file :file-path file-path))
-
-(defclass from-string (source-origin)
-  ((content
-     :initarg :content
-     :initform (a:required-argument "content")
-     :type string)
-   (context
-     :initarg :context
-     :initform (a:required-argument "context")
-     :type string))
-  (:documentation "A source origin that represents a string."))
-
-(defmethod print-object ((origin from-string) stream)
-  (print-unreadable-object (origin stream :type t)
-    (format stream "~A" (slot-value origin 'context))))
-
-(defun from-string (string &optional (context ""))
-  "Creates a source origin from a string."
-  (make-instance 'from-string :content string :context context))
+(deftype origin-designator ()
+  "A designator for the origin of a source code object."
+  `(or string pathname))
 
 (defclass source-code ()
   ((origin
      :initarg :origin
      :initform (a:required-argument "origin")
-     :type source-origin)
+     :type origin-designator)
     (stream
       :reader source-code-stream
       :initarg :stream
@@ -67,17 +34,13 @@
 (defgeneric open-source-code (origin)
   (:documentation "Creates a source code object."))
 
-(defmethod open-source-code ((origin from-file))
+(defmethod open-source-code ((origin pathname))
   "Creates a source code object."
-  (with-slots (file-path) origin
-    (let ((stream (open file-path :direction :input)))
-      (make-instance 'source-code :origin origin :stream stream))))
+  (make-instance 'source-code :origin origin :stream (open origin :direction :input)))
 
-(defmethod open-source-code ((origin from-string))
+(defmethod open-source-code ((origin string))
   "Creates a source code object."
-  (with-slots (content) origin
-    (let ((stream (make-string-input-stream content)))
-      (make-instance 'source-code :origin origin :stream stream))))
+  (make-instance 'source-code :origin "string" :stream (make-string-input-stream origin)))
 
 (defun close-source-code (source-code)
   "Closes the source code object."

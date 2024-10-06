@@ -40,7 +40,7 @@
 
 (defgeneric parse (input &key rule))
 
-(defmethod parse ((input stream) &key (rule '$expr))
+(defmethod parse ((input source:source-code) &key (rule '$expr))
   (let ((state (make-instance 'state :scanner (make-lexer input))))
     (with-slots (had-errors panic-mode) state
       (setf had-errors nil panic-mode nil)
@@ -49,12 +49,9 @@
         (expect state @eof)
         (values ast had-errors)))))
 
-(defmethod parse ((input source:source-code) &key (rule '$expr))
-  (parse (source:source-code-stream input) :rule rule))
-
-(defmethod parse ((origin source:source-origin) &key (rule '$expr))
+(defmethod parse (origin  &key (rule '$expr))
   (source:with-source-code (s origin)
-    (parse s :rule rule)))
+		(parse s :rule rule)))
 
 (defun synchronize (state)
   (declare (ignore state))
